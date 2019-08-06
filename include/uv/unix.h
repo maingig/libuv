@@ -64,7 +64,8 @@
 #elif defined(__PASE__)   || \
       defined(__CYGWIN__) || \
       defined(__MSYS__)   || \
-      defined(__GNU__)
+      defined(__GNU__)    || \
+      defined(__QNX__)
 # include "uv/posix.h"
 #elif defined(__HAIKU__)
 # include "uv/posix.h"

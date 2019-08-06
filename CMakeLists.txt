@@ -2,6 +2,9 @@
 cmake_minimum_required(VERSION 3.0)
 project(libuv)
 
+option(UV_SHARED "Build with shared version of UV" ON)
+option(UV_STATIC "Build with static version of UV" OFF)
+
 if(MSVC)
   list(APPEND uv_cflags /W4)
 elseif(CMAKE_C_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
@@ -54,8 +57,6 @@ set(uv_test_sources
     test/test-fs.c
     test/test-fs-readdir.c
     test/test-get-currentexe.c
-    test/test-get-loadavg.c
-    test/test-get-memory.c
     test/test-get-passwd.c
     test/test-getaddrinfo.c
     test/test-gethostname.c
@@ -96,7 +97,6 @@ set(uv_test_sources
     test/test-pipe-server-close.c
     test/test-pipe-set-fchmod.c
     test/test-pipe-set-non-blocking.c
-    test/test-platform-output.c
     test/test-poll-close-doesnt-corrupt-stack.c
     test/test-poll-close.c
     test/test-poll-closesocket.c
@@ -175,6 +175,14 @@ set(uv_test_sources
     test/test-walk-handles.c
     test/test-watcher-cross-stop.c)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
+    list(APPEND uv_test_sources
+        test/test-get-loadavg.c
+        test/test-get-memory.c
+        test/test-platform-output.c
+    )
+endif()
+
 if(WIN32)
   list(APPEND uv_defines WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0600)
   list(APPEND uv_libraries
@@ -215,7 +223,7 @@ if(WIN32)
   list(APPEND uv_test_sources src/win/snprintf.c test/runner-win.c)
 else()
   list(APPEND uv_defines _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
-  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
+  if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Android" AND NOT ${CMAKE_SYSTEM_NAME} STREQUAL "QNX")
     # Android has pthread as part of its c library, not as a separate
     # libpthread.so.
     list(APPEND uv_libraries pthread)
@@ -288,7 +296,7 @@ if(APPLE)
        src/unix/fsevents.c)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   list(APPEND uv_defines _GNU_SOURCE _POSIX_C_SOURCE=200112)
   list(APPEND uv_libraries dl rt)
   list(APPEND uv_sources
@@ -297,6 +305,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
        src/unix/linux-syscalls.c
        src/unix/procfs-exepath.c
        src/unix/sysinfo-loadavg.c)
+endif()
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "QNX")
+  list(APPEND uv_defines __EXT_BSD)
+  list(APPEND uv_defines _QNX_SOURCE)
+  list(APPEND uv_libraries socket)
+  list(APPEND uv_sources
+       src/unix/bsd-ifaddrs.c
+       src/unix/no-fsevents.c
+       src/unix/no-proctitle.c
+       src/unix/posix-hrtime.c
+       src/unix/posix-poll.c
+       src/unix/procfs-exepath.c)
+  add_definitions(-DQNX)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "NetBSD")
@@ -337,22 +359,26 @@ if(APPLE OR CMAKE_SYSTEM_NAME MATCHES "DragonFly|FreeBSD|Linux|NetBSD|OpenBSD")
   list(APPEND uv_test_libraries util)
 endif()
 
-add_library(uv SHARED ${uv_sources})
-target_compile_definitions(uv PRIVATE ${uv_defines} BUILDING_UV_SHARED=1)
-target_compile_options(uv PRIVATE ${uv_cflags})
-target_include_directories(uv PRIVATE include src)
-target_link_libraries(uv ${uv_libraries})
+if (UV_SHARED)
+    add_library(uv SHARED ${uv_sources})
+    target_compile_definitions(uv PRIVATE ${uv_defines} BUILDING_UV_SHARED=1)
+    target_compile_options(uv PRIVATE ${uv_cflags})
+    target_include_directories(uv PRIVATE include src)
+    target_link_libraries(uv ${uv_libraries})
+endif()
 
-add_library(uv_a STATIC ${uv_sources})
-target_compile_definitions(uv_a PRIVATE ${uv_defines})
-target_compile_options(uv_a PRIVATE ${uv_cflags})
-target_include_directories(uv_a PRIVATE include src)
-target_link_libraries(uv_a ${uv_libraries})
+if (UV_STATIC)
+    add_library(uv_a STATIC ${uv_sources})
+    target_compile_definitions(uv_a PRIVATE ${uv_defines})
+    target_compile_options(uv_a PRIVATE ${uv_cflags})
+    target_include_directories(uv_a PRIVATE include src)
+    target_link_libraries(uv_a ${uv_libraries})
+endif()
 
 option(libuv_buildtests "Build the unit tests when BUILD_TESTING is enabled." ON)
 
-include(CTest)
 if(BUILD_TESTING AND libuv_buildtests)
+  include(CTest)
   enable_testing()
   add_executable(uv_run_tests ${uv_test_sources})
   target_compile_definitions(uv_run_tests
@@ -373,9 +399,9 @@ if(BUILD_TESTING AND libuv_buildtests)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
+include(GNUInstallDirs)
 if(UNIX)
   # Now for some gibbering horrors from beyond the stars...
-  include(GNUInstallDirs)
   foreach(x ${uv_libraries})
     set(LIBS "${LIBS} -l${x}")
   endforeach(x)
@@ -385,11 +411,26 @@ if(UNIX)
   set(libdir ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
   set(prefix ${CMAKE_INSTALL_PREFIX})
   configure_file(libuv.pc.in ${CMAKE_CURRENT_BINARY_DIR}/libuv.pc @ONLY)
-
-  install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-  install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libuv.pc
-          DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-  install(TARGETS uv LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  install(TARGETS uv_a ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libuv.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
+
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+
+if (UV_SHARED)
+    install(TARGETS uv 
+      LIBRARY DESTINATION "lib"
+      ARCHIVE DESTINATION "lib"
+      RUNTIME DESTINATION "bin"
+      INCLUDES DESTINATION "include"
+    )
+endif()
+if (UV_STATIC)
+    install(TARGETS uv_a 
+      LIBRARY DESTINATION "lib"
+      ARCHIVE DESTINATION "lib"
+      RUNTIME DESTINATION "bin"
+      INCLUDES DESTINATION "include"
+    )
+endif()
+
