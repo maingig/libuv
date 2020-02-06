@@ -310,14 +310,15 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "QNX")
   list(APPEND uv_defines __EXT_BSD)
+  list(APPEND uv_defines __QNXNTO__)
   list(APPEND uv_defines _QNX_SOURCE)
   list(APPEND uv_libraries socket)
   list(APPEND uv_sources
        src/unix/bsd-ifaddrs.c
-       src/unix/no-fsevents.c
        src/unix/no-proctitle.c
        src/unix/posix-hrtime.c
        src/unix/posix-poll.c
+       src/unix/qnx-inotify.c
        src/unix/procfs-exepath.c)
   add_definitions(-DQNX)
 endif()

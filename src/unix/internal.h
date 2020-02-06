@@ -165,6 +165,7 @@ struct uv__stream_queued_fds_s {
     defined(__FreeBSD_kernel__) || \
     defined(__linux__) || \
     defined(__OpenBSD__) || \
+    defined(__QNX__) || \
     defined(__NetBSD__)
 #define uv__cloexec uv__cloexec_ioctl
 #define uv__nonblock uv__nonblock_ioctl

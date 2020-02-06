@@ -38,6 +38,10 @@ int uv__platform_loop_init(uv_loop_t* loop) {
   loop->poll_fds_used = 0;
   loop->poll_fds_size = 0;
   loop->poll_fds_iterating = 0;
+#if defined(__QNX__)
+  loop->inotify_fd = -1;
+  loop->inotify_watchers = NULL;
+#endif
   return 0;
 }
 

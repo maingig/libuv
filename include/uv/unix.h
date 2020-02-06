@@ -51,6 +51,8 @@
 # include "uv/os390.h"
 #elif defined(_AIX)
 # include "uv/aix.h"
+#elif defined(__QNX__)
+# include "uv/qnx.h"
 #elif defined(__sun)
 # include "uv/sunos.h"
 #elif defined(__APPLE__)
@@ -64,8 +66,7 @@
 #elif defined(__PASE__)   || \
       defined(__CYGWIN__) || \
       defined(__MSYS__)   || \
-      defined(__GNU__)    || \
-      defined(__QNX__)
+      defined(__GNU__)
 # include "uv/posix.h"
 #elif defined(__HAIKU__)
 # include "uv/posix.h"
